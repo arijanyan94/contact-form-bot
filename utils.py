@@ -216,27 +216,33 @@ def find_contact_form(driver):
 
 def find_form_in_iframe(driver):
 
-	iframes = driver.find_elements(By.TAG_NAME, "iframe")
+	form_element = None
+	n_iframes = len(driver.find_elements(By.TAG_NAME, "iframe"))
 
-	# Step 2: Iterate through each iframe to find the form
-	for index, iframe in enumerate(iframes):
-		# Switch to the iframe
-		driver.switch_to.frame(iframe)
-		
-		# Try to find the form within this iframe
+	for index in range(n_iframes):
+		# We should find iframes for each index.
+		# If we re-use the same list of iframes the elements in it will become
+		# stale after each call to driver.switch_to.frame()
+
+		iframes = driver.find_elements(By.TAG_NAME, "iframe")
+		iframe = iframes[index]
 		try:
-			# Example: Looking for a form element directly
+			driver.switch_to.frame(iframe)
 			form_element = find_contact_form(driver)
 			if form_element:
 				element_attributes(driver, form_element)
-				return form_element
-		except:
-			# If the form is not found, an exception will be thrown, and we catch it here
+		finally:
 			driver.switch_to.default_content()
 
-	# Step 4: Switch back to the main document if further actions are needed outside of iframes
-	driver.switch_to.default_content()
-	raise BotException("Contact form was not found")
+		if form_element is not None:
+			break
+
+	driver.switch_to.default_content()  # just in case
+
+	if form_element is None:
+		raise BotException("Contact form was not found")
+
+	return form_element
 
 
 def create_driver():

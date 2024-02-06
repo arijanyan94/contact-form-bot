@@ -1,4 +1,5 @@
 import time
+import sys
 import json
 import random
 import traceback
@@ -319,8 +320,14 @@ confirmation_messages = [
 driver = create_driver()
 
 website_url = "http://www.aclas.tw"
+if len(sys.argv) == 2:
+    website_url = sys.argv[1]
+elif len(sys.argv) != 1:
+    raise ValueError("Wrong # of args")
+
 message =   "Meeting at "
 info["message"] = message
+
 res = automate_contact_form(driver, website_url, info, confirmation_messages)
 
 
