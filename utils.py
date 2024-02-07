@@ -39,14 +39,16 @@ def translate_page(driver, website_url):
 
 		# The content will now be within an iframe, so you might need to switch to it
 		# Look for the iframe id or name in the translated page (it might change over time or be different)
-		iframe_id = 'google_translate_iframe'  # This is a placeholder; you'll need to check the correct id or name
-		try:
-			WebDriverWait(driver, 10).until(EC.frame_to_be_available_and_switch_to_it((By.ID, iframe_id)))
-			# Now you can interact with the translated content
-		except WebDriverException as e:
-			pass
-		except Exception as e:
-			pass
+		time.sleep(2)
+		driver.switch_to.default_content()
+		# iframe_id = 'google_translate_iframe'  # This is a placeholder; you'll need to check the correct id or name
+		# try:
+		# 	WebDriverWait(driver, 10).until(EC.frame_to_be_available_and_switch_to_it((By.ID, iframe_id)))
+		# 	# Now you can interact with the translated content
+		# except WebDriverException as e:
+		# 	pass
+		# except Exception as e:
+		# 	pass
 
 
 def find_elements_from_soup(query_element, include_tags, include_attributes_per_tag, exclude_attributes_per_tag):
@@ -105,16 +107,19 @@ def fill_in_section(element, attribute, inputs, message, visited):
 		res = {'@type': [],
 				'@name': [],
 				'@class': [],
-				'@placeholder': []}
+				'@placeholder': [],
+				'@title': []}
 		for i in inputs:
 			res['@type'].append(xpath_lower('@type', i))
 			res['@name'].append(xpath_lower('@name', i))
 			res['@class'].append(xpath_lower('@class', i))
 			res['@placeholder'].append(xpath_lower('@placeholder', i))
+			res['@title'].append(xpath_lower('@title', i))
 		xpath_query = f"""//{attribute}[({' and '.join(res['@type'])}) or
 										({' and '.join(res['@name'])}) or
 										({' and '.join(res['@class'])}) or
-										({' and '.join(res['@placeholder'])})]"""
+										({' and '.join(res['@placeholder'])}) or
+										({' and '.join(res['@title'])})]"""
 
 		section_input = element.find_element(By.XPATH, xpath_query)
 		if section_input.id in visited:
@@ -216,28 +221,33 @@ def find_contact_form(driver):
 
 def find_form_in_iframe(driver):
 
-	iframes = driver.find_elements(By.TAG_NAME, "iframe")
+	form_element = None
+	n_iframes = len(driver.find_elements(By.TAG_NAME, "iframe"))
 
-	# Step 2: Iterate through each iframe to find the form
-	for index, iframe in enumerate(iframes):
-		# Switch to the iframe
-		driver.switch_to.frame(iframe)
-		
-		# Try to find the form within this iframe
+	for index in range(n_iframes):
+		# We should find iframes for each index.
+		# If we re-use the same list of iframes the elements in it will become
+		# stale after each call to driver.switch_to.frame()
+
+		iframes = driver.find_elements(By.TAG_NAME, "iframe")
+		iframe = iframes[index]
 		try:
-			# Example: Looking for a form element directly
+			driver.switch_to.frame(iframe)
 			form_element = find_contact_form(driver)
 			if form_element:
 				element_attributes(driver, form_element)
-				return form_element
-		except:
-			# If the form is not found, an exception will be thrown, and we catch it here
+		finally:
 			driver.switch_to.default_content()
 
-	# Step 4: Switch back to the main document if further actions are needed outside of iframes
-	driver.switch_to.default_content()
-	raise BotException("Contact form was not found")
+		if form_element is not None:
+			break
 
+	driver.switch_to.default_content()  # just in case
+
+	if form_element is None:
+		raise BotException("Contact form was not found")
+
+	return form_element
 
 def create_driver():
 
