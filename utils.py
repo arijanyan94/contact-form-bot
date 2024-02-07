@@ -39,14 +39,16 @@ def translate_page(driver, website_url):
 
 		# The content will now be within an iframe, so you might need to switch to it
 		# Look for the iframe id or name in the translated page (it might change over time or be different)
-		iframe_id = 'google_translate_iframe'  # This is a placeholder; you'll need to check the correct id or name
-		try:
-			WebDriverWait(driver, 10).until(EC.frame_to_be_available_and_switch_to_it((By.ID, iframe_id)))
-			# Now you can interact with the translated content
-		except WebDriverException as e:
-			pass
-		except Exception as e:
-			pass
+		time.sleep(2)
+		driver.switch_to.default_content()
+		# iframe_id = 'google_translate_iframe'  # This is a placeholder; you'll need to check the correct id or name
+		# try:
+		# 	WebDriverWait(driver, 10).until(EC.frame_to_be_available_and_switch_to_it((By.ID, iframe_id)))
+		# 	# Now you can interact with the translated content
+		# except WebDriverException as e:
+		# 	pass
+		# except Exception as e:
+		# 	pass
 
 
 def find_elements_from_soup(query_element, include_tags, include_attributes_per_tag, exclude_attributes_per_tag):
@@ -105,16 +107,19 @@ def fill_in_section(element, attribute, inputs, message, visited):
 		res = {'@type': [],
 				'@name': [],
 				'@class': [],
-				'@placeholder': []}
+				'@placeholder': [],
+				'@title': []}
 		for i in inputs:
 			res['@type'].append(xpath_lower('@type', i))
 			res['@name'].append(xpath_lower('@name', i))
 			res['@class'].append(xpath_lower('@class', i))
 			res['@placeholder'].append(xpath_lower('@placeholder', i))
+			res['@title'].append(xpath_lower('@title', i))
 		xpath_query = f"""//{attribute}[({' and '.join(res['@type'])}) or
 										({' and '.join(res['@name'])}) or
 										({' and '.join(res['@class'])}) or
-										({' and '.join(res['@placeholder'])})]"""
+										({' and '.join(res['@placeholder'])}) or
+										({' and '.join(res['@title'])})]"""
 
 		section_input = element.find_element(By.XPATH, xpath_query)
 		if section_input.id in visited:
@@ -243,7 +248,6 @@ def find_form_in_iframe(driver):
 		raise BotException("Contact form was not found")
 
 	return form_element
-
 
 def create_driver():
 
