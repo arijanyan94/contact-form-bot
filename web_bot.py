@@ -1,4 +1,5 @@
 import time
+import sys
 import json
 import random
 import traceback
@@ -24,14 +25,7 @@ class BotException(Exception):
 
 
 def select_options(element, attribute, input_str):
-	"""
-	Selects the given element by value from Select object if exists
 
-	Args:
-		element: web element on which select is located
-		attribute: can be 'select' or 'input'
-		input_str: the value to select
-	"""
 	try:
 		select_option = element.find_element(By.XPATH, f"""//{attribute}[
 										{to_xpath_converter([('@name', input_str),
@@ -62,15 +56,12 @@ def select_options(element, attribute, input_str):
 
 def filter_submit_buttons(driver, form_element, submit_buttons):
 	"""
-	Leaves only the submit buttons that have the ancestor 
-	form_element in their ancestor chain
+	Filter elements that have the given ancestor_element in their ancestor chain.
 
-	Args:
-		driver: webdriver object
-		form_element: the element containing the submit buttons
-		submit_buttons: list of buttons on the webpage
-	Returns:
-		correct_buttons: A list of elements that have form_element in their ancestors
+	:param driver: Selenium WebDriver instance.
+	:param ancestor_element: The ancestor WebElement to compare against.
+	:param elements_list: List of WebElements to filter.
+	:return: A list of elements that have ancestor_element in their ancestors.
 	"""
 	correct_buttons = []
 
@@ -87,7 +78,8 @@ def click_submit(element, driver):
 
 	Args:
 		driver: webdriver object
-		element: the element containing the submit button
+		index: the index of the element in the list
+		button: attribute name, "button" or "input"
 	"""
 	include_tags = ['input', 'button']
 	include_attributes_per_tag = {
@@ -111,34 +103,39 @@ def click_submit(element, driver):
 
 def click_on_checkbox(element, driver):
 	"""
-	Clicks on every checkbox in the element
+	Clicks on the checkbox for acceptance, to be able to submit the form
 
 	Args:
-		element: the element containing the checkboxes
 		driver: webdriver object
 	"""
 	try:
-		checkboxes = element.find_elements(By.XPATH, "//input[@type='checkbox']")
-		for checkboxe in checkboxes:
-			driver.execute_script("arguments[0].click();", checkboxe)
-			time.sleep(random.uniform(1.0, 2.0))
+		data_collection_checkbox = element.find_element(By.XPATH, """
+															//input[@type='checkbox' and 
+															(@aria-required='true' or
+															@required='required' or
+															@required or
+															contains(@name,'accept'))]""")
+		driver.execute_script("arguments[0].click();", data_collection_checkbox)
+		# data_collection_checkbox.click()
+		print("Checkbox clicked")
+		time.sleep(random.uniform(2.0, 3.0))
 	except (NoSuchElementException, ElementNotInteractableException):
-		print("No checkbox found")
+		try:
+			data_collection_checkbox = element.find_element(By.XPATH, "//input[@type='checkbox']")
+		except NoSuchElementException:
+			pass
 
 def fill_input_by_label(element, xpath_expression, message, checker):
 	"""
-	Leaves only the submit buttons that have the ancestor 
-	form_element in their ancestor chain
+	Finds an input element based on the text of its associated label.
 
-	Args:
-		element: the element containing the label
-		xpath_expression: xpath expression to find the label
-		message: message to send to the input
-		checker: list of element ids which are already filled in
-	Returns:
-		id: the element id that was filled in or None
+	:param driver: The Selenium WebDriver.
+	:param label_text: The text contained in the label associated with the input.
+	:return: The input WebElement if found, None otherwise.
 	"""
 	try:
+		# Find the label by its text using XPath
+
 		label = element.find_element(By.XPATH, xpath_expression)
 		
 		# Get the 'for' attribute, which should match the input element's ID
@@ -156,36 +153,6 @@ def fill_input_by_label(element, xpath_expression, message, checker):
 			return None
 	except NoSuchElementException as e:
 		return None
-
-def check_required_fields(element, default_input, default_text):
-	"""
-	Fills in all the required and still empty input and textarea fields
-
-	Args:
-		element: element to search in
-		default_input: string that is filled in to all required input fields if empty
-		default_text: string that is filled in to all required textarea fields if empty
-	"""
-	try:
-		required_inputs = element.find_elements(By.XPATH, """//input[@aria-required='true' or
-																@required='required' or
-																@required] |
-															//textarea[@aria-required='true' or
-																@required='required' or
-																@required]""")
-	except NoSuchElementException:
-		return
-
-	required_inputs = [elem for elem in required_inputs if elem.get_attribute('value').strip() == '']
-	for elem in required_inputs:
-		try:
-			if elem.tag_name == 'input':
-				elem.send_keys(default_input)
-			else:
-				elem.send_keys(default_text)
-			time.sleep(random.uniform(1.0, 2.0))
-		except ElementNotInteractableException:
-			continue
 
 def check_for_success_alert(driver, confirmation_messages):
 	"""
@@ -248,19 +215,7 @@ def check_form_disapears(form_element, driver):
 	return True
 
 def fill_the_form(element, tag, search_array, input_str, checker):
-	"""
-	Tries to fill in the form element with different approaches
 
-	Args:
-		element: form element object
-		tag: input or textarea
-		search_array: list of attribute values to search
-		input_str: string to send to input field
-		checker: list of element ids which are already filled in
-	
-	Returns:
-		id: the element id that was filled in or None 
-	"""
 	inputed = fill_in_section(element, tag, search_array, input_str, checker)
 	if not inputed:
 		xpath = []
@@ -276,76 +231,70 @@ def fill_the_form(element, tag, search_array, input_str, checker):
 
 def automate_contact_form(driver,website_url, info, confirmation_messages):
 
-	try:
+	# try:
 
-		translate_page(driver, website_url)
-		check_for_cookie(driver)
-		time.sleep(5)
-		iframe_driver = False
-		find_contact_us_page(driver)
-		check_for_cookie(driver)
-		form_element = find_contact_form(driver)
-		if not form_element:
-			form_element = find_form_in_iframe(driver)
-			iframe_driver = True
-		time.sleep(5)
-		visited = []
-		visited.append(fill_the_form(form_element, 'input', ['full', 'name'], info['fullname'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['first', 'name'], info['firstname'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['last', 'name'], info['lastname'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['sur', 'name'], info['lastname'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['name'], info['fullname'], visited))
+	translate_page(driver, website_url)
+	check_for_cookie(driver)
+	time.sleep(5)
+	iframe_driver = False
+	find_contact_us_page(driver)
+	check_for_cookie(driver)
+	form_element = find_contact_form(driver)
+	if not form_element:
+		form_element = find_form_in_iframe(driver)
+		iframe_driver = True
+	time.sleep(5)
+	visited = []
+	visited.append(fill_the_form(form_element, 'input', ['full', 'name'], info['fullname'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['first', 'name'], info['firstname'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['last', 'name'], info['lastname'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['sur', 'name'], info['lastname'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['name'], info['fullname'], visited))
 
-		visited.append(fill_the_form(form_element, 'input', ['mail'], info['email'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['compan'], info['company'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['mail'], info['email'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['compan'], info['company'], visited))
 
-		visited.append(fill_the_form(form_element, 'input', ['phone'], info['phone'], visited))
-		visited.append(fill_the_form(form_element, 'input', ["tel"], info['phone'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['phone'], info['phone'], visited))
+	visited.append(fill_the_form(form_element, 'input', ["tel"], info['phone'], visited))
 
-		country = fill_the_form(form_element, 'input', ['country'], info['country'], visited)
-		if not country:
-			visited.append(country)
-		else:
-			select_options(form_element, 'select', 'country')
+	country = fill_the_form(form_element, 'input', ['country'], info['country'], visited)
+	if not country:
+		visited.append(country)
+	else:
+		select_options(form_element, 'select', 'country')
 
-		visited.append(fill_the_form(form_element, 'input', ['address'], info['address'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['street'], info['street'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['city'], info['city'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['postcode'], info['postcode'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['zip'], info['postcode'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['address'], info['address'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['street'], info['street'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['city'], info['city'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['postcode'], info['postcode'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['zip'], info['postcode'], visited))
 
-		visited.append(fill_the_form(form_element, 'input', ['job'], info['job'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['job'], info['job'], visited))
 
-		visited.append(fill_the_form(form_element, 'input', ['subject'], info['message'], visited))
-		visited.append(fill_the_form(form_element, 'input', ['regarding'], info['message'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['subject'], info['message'], visited))
+	visited.append(fill_the_form(form_element, 'input', ['regarding'], info['message'], visited))
 
-		visited.append(fill_the_form(form_element, 'input', ['salutation'], 'male', visited))
-		select_options(form_element, 'select', 'request')
-		select_options(form_element, 'select', 'salutation')
-		select_options(form_element, 'select', 'gender')
-		select_options(form_element, 'input', 'salutation')
+	select_options(form_element, 'select', 'request')
+	select_options(form_element, 'select', 'salutation')
+	select_options(form_element, 'select', 'gender')
+	select_options(form_element, 'input', 'salutation')
 
-		visited.append(fill_the_form(form_element, 'textarea', ['message'], info['message'], visited))
-		visited.append(fill_the_form(form_element, 'textarea', ['inquiry'], info['message'], visited))
+	visited.append(fill_the_form(form_element, 'textarea', ['message'], info['message'], visited))
+	visited.append(fill_the_form(form_element, 'textarea', ['inquiry'], info['message'], visited))
 
-		click_on_checkbox(form_element, driver)
+	click_on_checkbox(form_element, driver)
+	time.sleep(2)
+	click_submit(form_element, driver)
+	time.sleep(5)
+	if iframe_driver:
+		driver.switch_to.default_content()
+	is_on_page = is_submission_confirmed(driver, confirmation_messages)
+	is_alert = check_for_success_alert(driver, confirmation_messages)
+	return (is_on_page or is_alert , "Submitted")
 
-		default_input = info['email']
-		default_text = info['message']
-		check_required_fields(form_element, default_input, default_text)
-		time.sleep(2)
-		click_submit(form_element, driver)
-		time.sleep(5)
-		if iframe_driver:
-			driver.switch_to.default_content()
-		is_on_page = is_submission_confirmed(driver, confirmation_messages)
-		is_alert = check_for_success_alert(driver, confirmation_messages)
-		result = "True" if is_on_page or is_alert else "False"
-		return (result , "Submitted")
-
-	except Exception as e:
-		# print(e)
-		return ('False', e)
+	# except Exception as e:
+	# 	print(e)
+	# 	return (False, e)
 
 
 # Load the Excel file with website URLs
@@ -371,8 +320,14 @@ confirmation_messages = [
 driver = create_driver()
 
 website_url = "http://www.aclas.tw"
+if len(sys.argv) == 2:
+    website_url = sys.argv[1]
+elif len(sys.argv) != 1:
+    raise ValueError("Wrong # of args")
+
 message =   "Meeting at "
 info["message"] = message
+
 res = automate_contact_form(driver, website_url, info, confirmation_messages)
 
 
@@ -386,4 +341,3 @@ res = automate_contact_form(driver, website_url, info, confirmation_messages)
 # 	df.loc[i, 'Status'] = res[0]
 # 	df.to_excel('full_test.xlsx', index=False)
 # 	print(f"Finished {i}")
-
